@@ -68,7 +68,24 @@
                         <button @click="cancelInsert" class="ml-1 text-red-500 underline">取消</button>
                     </span>
                 </div>
+                
                 <textarea v-model="content" class="w-full border p-2 rounded h-24" placeholder="输入内容..."></textarea>
+            <div class="mt-2 mb-2">
+    <label class="block text-sm font-bold mb-1">插入图片 (可选)</label>
+    <div class="flex gap-2 items-center">
+        <input 
+            id="imgInput"
+            type="file" 
+            accept="image/*"
+            @change="handleImageUpload"
+            class="text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+        />
+    </div>
+    <div v-if="currentImage" class="mt-2 p-1 border border-dashed rounded bg-gray-50 inline-block">
+        <span class="text-xs text-gray-400 block mb-1">即将发送:</span>
+        <img :src="currentImage" class="h-16 object-cover rounded">
+    </div>
+</div>
             </div>
 
             <div class="mb-2 bg-gray-50 p-2 rounded border">
@@ -77,7 +94,12 @@
                  <span class="ml-2 font-bold text-gray-700 text-sm">显示头像</span>
                  </label>
             </div>
-            
+    <input v-model="threadTitle" class="w-full border p-1 rounded text-sm font-bold" placeholder="帖子标题">
+
+    <div class="flex items-center mt-2 text-sm text-gray-600">
+         <span class="mr-2">👀 浏览量:</span>
+         <input v-model="viewCount" type="number" class="border p-1 rounded w-24">
+    </div>
             <button @click="addPost" 
                 :class="insertIndex !== -1 ? 'bg-purple-600 hover:bg-purple-700' : 'bg-blue-600 hover:bg-blue-700'"
                 class="text-white py-2 rounded shadow transition-colors w-full mb-2">
@@ -93,37 +115,60 @@
 
         <div class="w-2/3 overflow-auto bg-gray-200 p-5">
             <div id="capture-area" class="preview-area min-h-[600px] w-full max-w-[600px] mx-auto shadow-lg text-sm text-gray-800 font-sans relative">
-                
-                <div class="bg-[#4C281B] text-white p-2 text-xs font-sans">
-                     {{ forumName }} &gt; {{ subForum }} &gt; {{ threadTitle }}
-                </div>
+            <div class="bg-[#4C281B] text-white p-2 text-xs font-sans border-b border-gray-200">
+    <span>{{ forumName }}</span> 
+    &gt; 
+    <span>{{ subForum }}</span>
+</div>
 
-                <div v-for="(post, index) in posts" :key="index" class="post-card p-4 flex gap-3 relative group">
-                    <div v-if="showAvatar" class="w-12 flex-shrink-0 text-center">
-    <div class="w-10 h-10 bg-gray-200 rounded-sm mx-auto mb-1 overflow-hidden border-2 border-gray-300">
-      <img v-if="post.role === 'LZ'" src="https://api.dicebear.com/7.x/pixel-art/svg?seed=lz" class="w-full h-full" />
-      <img v-else :src="'https://api.dicebear.com/7.x/pixel-art/svg?seed=' + post.id" class="w-full h-full" />
+<div class="bg-white m-4 p-4 rounded-lg shadow-sm border border-gray-200">
+    <h1 class="text-xl font-bold text-gray-800 mb-3 tracking-wide">
+        {{ threadTitle }}
+    </h1>
+    
+    <div class="flex items-center text-xs text-gray-500 gap-4">
+        <div class="flex items-center gap-1">
+            <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+            <span>浏览: {{ viewCount }}</span>
+        </div>
+
+        <div class="flex items-center gap-1">
+            <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
+            <span>回复: {{ posts.length - 1 }}</span>
+        </div>
     </div>
 </div>
-                    
-                    <div class="flex-1">
-                        <div class="flex justify-between text-xs text-gray-500 mb-1">
-                            <span class="font-bold text-[#562214]">{{ post.id }}</span>
-                            <span>{{ post.time }} | {{ index }}L</span>
-                        </div>
-                        <div class="leading-relaxed whitespace-pre-wrap">{{ post.content }}</div>
-                    </div>
+              <div v-for="(post, index) in posts" :key="index" class="post-card p-4 flex gap-3 relative group">
+    
+    <div v-if="showAvatar" class="w-12 flex-shrink-0 text-center">
+        <div class="w-10 h-10 bg-gray-200 rounded-sm mx-auto mb-1 overflow-hidden border-2 border-gray-300">
+          <img v-if="post.role === 'LZ'" src="https://api.dicebear.com/7.x/pixel-art/svg?seed=lz" class="w-full h-full" />
+          <img v-else :src="'https://api.dicebear.com/7.x/pixel-art/svg?seed=' + post.id" class="w-full h-full" />
+        </div>
+    </div>
+    
+    <div class="flex-1">
+        <div class="flex justify-between text-xs text-gray-500 mb-1">
+            <span class="font-bold text-[#562214]">
+    {{ post.id }}
+    <span v-if="post.role === 'LZ'" class="ml-1 bg-blue-100 text-blue-800 text-[10px] px-1.5 py-0.5 rounded border border-blue-200 align-middle font-normal">
+        楼主
+    </span>
+</span>
+            <span>{{ post.time }} | {{ index }}L</span>
+        </div>
+        
+        <div v-if="post.content" class="leading-relaxed whitespace-pre-wrap">{{ post.content }}</div>
 
-                    <div class="action-buttons absolute right-2 top-2 flex gap-1" data-html2canvas-ignore="true">
-                        <button @click="prepareInsert(index)" title="在此楼后插入" class="bg-purple-100 text-purple-600 hover:bg-purple-200 p-1 rounded text-xs">
-                            ➕插楼
-                        </button>
-                        <button @click="deletePost(index)" title="删除此楼" class="bg-red-100 text-red-600 hover:bg-red-200 p-1 rounded text-xs">
-                            🗑️删除
-                        </button>
-                    </div>
-                </div>
-
+        <div v-if="post.image" class="mt-3">
+            <img :src="post.image" class="max-w-full max-h-[500px] rounded border border-gray-200 mx-auto shadow-sm" />
+        </div>
+    </div>
+    <div class="action-buttons absolute right-2 top-2 flex gap-1" data-html2canvas-ignore="true">
+        <button @click="prepareInsert(index)" title="在此楼后插入" class="bg-purple-100 text-purple-600 hover:bg-purple-200 p-1 rounded text-xs">➕</button>
+        <button @click="deletePost(index)" title="删除此楼" class="bg-red-100 text-red-600 hover:bg-red-200 p-1 rounded text-xs">🗑️</button>
+    </div>
+</div>
             </div>
         </div>
 
@@ -136,15 +181,22 @@
             setup() {
                 // --- 数据定义 ---
                 const threadTitle = ref("求助！我的室友好像是个杀手...");
+                const viewCount = ref(5832); // 新增：浏览量默认值
                 const forumName = ref("NGA玩家社区");
                 const subForum = ref("晴风村");
-                
+                const currentImage = ref(null);
                 const currentRole = ref("LZ");
                 const currentId = ref("无助的楼主");
                 const content = ref("");
                 const showAvatar = ref(true);
                 const insertIndex = ref(-1); // -1 表示正常追加，>=0 表示在该index后插入
-
+                const handleImageUpload = (event) => {
+                  const file = event.target.files[0];
+                  if (file) {
+                 // 把文件变成一个可以在浏览器显示的临时链接
+                  currentImage.value = URL.createObjectURL(file);
+                    }
+                };
                 const posts = ref([
                     { role: 'LZ', id: '无助的楼主', content: '如题，昨天半夜听到他在磨刀...', time: '2023-10-25 10:00' }
                 ]);
@@ -181,12 +233,14 @@
                 
                 // 4. 发送/插入核心逻辑
                 const addPost = () => {
-                    if (!content.value) return;
+                   if (!content.value && !currentImage.value) return;
 
                     const newPost = {
                         role: currentRole.value,
-                        id: currentRole.value === 'LZ' ? '无助的楼主' : (currentId.value || '路人甲'),
+                       // 改成这样：优先读取输入框里的 currentId，只有当输入框是空的时候，才给个默认值
+                        id: currentId.value || (currentRole.value === 'LZ' ? '楼主' : '路人甲'),
                         content: content.value,
+                        image: currentImage.value,
                         time: new Date().toLocaleTimeString()
                     };
 
@@ -200,6 +254,8 @@
                     }
                     
                     content.value = "";
+                    currentImage.value = null;
+                    document.getElementById('imgInput').value = '';
                     if (currentRole.value === '路人') {
                         // 简单的随机ID防重复
                     }
@@ -244,7 +300,7 @@
                 };
 
                 return {
-                    threadTitle, forumName, subForum, 
+                    threadTitle, forumName, subForum, viewCount,currentImage,handleImageUpload,
                     currentRole, currentId, content, posts, showAvatar,
                     presets, selectedPreset, newPresetName, newPresetId, insertIndex,
                     addPost, exportImage, applyPreset, addCustomPreset, 
