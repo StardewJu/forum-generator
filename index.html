@@ -25,8 +25,8 @@
                 <label class="block text-sm font-bold text-gray-700">顶部设置</label>
                 
                 <div class="flex gap-2">
-                    <input v-model="forumName" class="w-1/2 border p-1 rounded text-sm" placeholder="论坛名 (如: NGA)">
-                    <input v-model="subForum" class="w-1/2 border p-1 rounded text-sm" placeholder="板块名 (如: 晴风村)">
+                    <input v-model="forumName" class="w-1/2 border p-1 rounded text-sm" placeholder="论坛名">
+                    <input v-model="subForum" class="w-1/2 border p-1 rounded text-sm" placeholder="板块名 ">
                 </div>
 
                 <div class="bg-blue-50 p-2 rounded border border-blue-100 flex gap-2 items-start">
@@ -86,8 +86,8 @@
                         </div>
 
                         <div class="flex-1 flex flex-col gap-2">
-                            <input v-model="newPresetName" placeholder="备注 (如: 闺蜜)" class="w-full border p-1 rounded text-xs">
-                            <input v-model="newPresetId" placeholder="ID (如: 吐槽星人)" class="w-full border p-1 rounded text-xs">
+                            <input v-model="newPresetName" placeholder="备注 " class="w-full border p-1 rounded text-xs">
+                            <input v-model="newPresetId" placeholder="ID" class="w-full border p-1 rounded text-xs">
                             <button @click="addCustomPreset" class="w-full bg-gray-700 text-white py-1 rounded hover:bg-gray-800 text-xs">
                                 保存到列表
                             </button>
@@ -226,12 +226,12 @@
                 const threadTitle = ref("求助！我的室友好像是个杀手...");
                 const forumName = ref("鹈鹕镇社区");
                 const subForum = ref("深夜农场");
-                const globalLzName = ref("无助的楼主"); 
+                const globalLzName = ref(""); 
                 const lzAvatar = ref(null); 
                 const viewCount = ref(5832);
                 
                 const currentRole = ref("LZ");
-                const currentId = ref("无助的楼主");
+                const currentId = ref("");
                 const content = ref("");
                 const currentImage = ref(null);
                 const showAvatar = ref(true);
