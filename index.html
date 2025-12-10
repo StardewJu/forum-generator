@@ -2,7 +2,7 @@
 <html lang="zh">
 <head>
     <meta charset="UTF-8">
-    <title>论坛体生成器 (最终完整版)</title>
+    <title>论坛体生成器 (究极完整版+回复功能)</title>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
@@ -10,8 +10,11 @@
     <style>
         .preview-area { background-color: #FDF9EE; }
         .post-card { border-bottom: 1px solid #E2DCC8; }
+        /* 鼠标悬停显示操作按钮 */
         .post-card:hover .action-buttons { opacity: 1; }
         .action-buttons { opacity: 0; transition: opacity 0.2s; }
+        /* 引用块样式 (仿NGA) */
+        .quote-box { background-color: #F7F2E2; border: 1px solid #E6E1D0; color: #666; }
     </style>
 </head>
 <body class="bg-gray-100 h-screen p-5">
@@ -19,20 +22,23 @@
     <div id="app" class="flex gap-5 h-full">
         
         <div class="w-1/3 bg-white p-5 rounded shadow flex flex-col gap-4 overflow-auto">
-            <h2 class="text-xl font-bold">编辑控制台</h2>
+            <h2 class="text-xl font-bold flex justify-between items-center">
+                <span>编辑控制台</span>
+                <span class="text-xs font-normal text-gray-400">已启用自动存档</span>
+            </h2>
             
             <div class="space-y-2 mb-2 border-b pb-4">
                 <label class="block text-sm font-bold text-gray-700">顶部设置</label>
                 
                 <div class="flex gap-2">
                     <input v-model="forumName" class="w-1/2 border p-1 rounded text-sm" placeholder="论坛名">
-                    <input v-model="subForum" class="w-1/2 border p-1 rounded text-sm" placeholder="板块名 ">
+                    <input v-model="subForum" class="w-1/2 border p-1 rounded text-sm" placeholder="板块名">
                 </div>
 
                 <div class="bg-blue-50 p-2 rounded border border-blue-100 flex gap-2 items-start">
                     <div class="flex flex-col items-center gap-1">
                         <div class="w-10 h-10 rounded border border-blue-200 bg-white overflow-hidden relative group">
-                            <img :src="lzAvatar || 'https://api.dicebear.com/7.x/pixel-art/svg?seed=lz'" class="w-full h-full object-cover">
+                            <img :src="lzAvatar || 'https://api.dicebear.com/7.x/lorelei/svg?seed=lz'" class="w-full h-full object-cover">
                             <label class="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center text-white text-[8px] opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity">
                                 换图
                                 <input type="file" accept="image/*" @change="handleLzAvatarUpload" class="hidden">
@@ -42,8 +48,8 @@
                     </div>
                 
                     <div class="flex-1">
-                        <label class="block text-xs font-bold text-blue-600 mb-1">👑 楼主资料设置</label>
-                        <input v-model="globalLzName" class="w-full border p-1 rounded text-sm font-bold text-blue-800" placeholder="输入楼主ID">
+                        <label class="block text-xs font-bold text-blue-600 mb-1">👑 楼主统一ID</label>
+                        <input v-model="globalLzName" class="w-full border p-1 rounded text-sm font-bold text-blue-800" placeholder="例如: 钮祜禄·甄嬛">
                     </div>
                 </div>
                 
@@ -74,7 +80,7 @@
                         <div class="flex flex-col items-center gap-1">
                             <div class="w-10 h-10 rounded border border-gray-300 overflow-hidden bg-gray-100 relative group">
                                 <img 
-                                    :src="newPresetAvatar || ('https://api.dicebear.com/7.x/pixel-art/svg?seed=' + (newPresetId || 'default'))" 
+                                    :src="newPresetAvatar || ('https://api.dicebear.com/7.x/lorelei/svg?seed=' + (newPresetId || 'default'))" 
                                     class="w-full h-full object-cover"
                                 >
                                 <label class="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center text-white text-[8px] opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity">
@@ -86,7 +92,7 @@
                         </div>
 
                         <div class="flex-1 flex flex-col gap-2">
-                            <input v-model="newPresetName" placeholder="备注 " class="w-full border p-1 rounded text-xs">
+                            <input v-model="newPresetName" placeholder="备注" class="w-full border p-1 rounded text-xs">
                             <input v-model="newPresetId" placeholder="ID" class="w-full border p-1 rounded text-xs">
                             <button @click="addCustomPreset" class="w-full bg-gray-700 text-white py-1 rounded hover:bg-gray-800 text-xs">
                                 保存到列表
@@ -110,22 +116,40 @@
             </div>
 
             <div>
-                <div class="flex justify-between items-center mb-1">
+                <div class="flex justify-between items-center mb-1 flex-wrap gap-2">
                     <label class="block text-sm font-bold">回复内容</label>
-                    <span v-if="insertIndex !== -1" class="text-xs font-bold text-purple-600 bg-purple-100 px-2 py-1 rounded">
-                        ✨ 正在 {{ insertIndex }}L 后插入
-                        <button @click="cancelInsert" class="ml-1 text-red-500 underline">取消</button>
-                    </span>
+                    <div class="flex gap-2 flex-wrap">
+                        <span v-if="insertIndex !== -1" class="text-xs font-bold text-purple-600 bg-purple-100 px-2 py-1 rounded animate-pulse">
+                            ✨ 插楼 ({{ insertIndex }}L 后)
+                            <button @click="cancelInsert" class="ml-1 text-red-500 underline">×</button>
+                        </span>
+                        <span v-if="editingIndex !== -1" class="text-xs font-bold text-orange-600 bg-orange-100 px-2 py-1 rounded animate-pulse">
+                            ✎ 修改 ({{ editingIndex }}L)
+                            <button @click="cancelEdit" class="ml-1 text-red-500 underline">×</button>
+                        </span>
+                        <span v-if="replyTarget" class="text-xs font-bold text-cyan-600 bg-cyan-100 px-2 py-1 rounded">
+                            ↩️ 回复 {{ replyTarget.floor }}L
+                            <button @click="cancelReply" class="ml-1 text-red-500 underline">×</button>
+                        </span>
+                    </div>
                 </div>
                 <textarea v-model="content" class="w-full border p-2 rounded h-24" placeholder="输入内容..."></textarea>
                 
-                <div class="mt-2 flex items-center gap-2">
-                    <label class="text-xs font-bold bg-gray-200 px-2 py-1 rounded cursor-pointer hover:bg-gray-300">
-                        📷 上传图片
-                        <input id="imgInput" type="file" accept="image/*" @change="handleImageUpload" class="hidden" />
-                    </label>
-                    <span v-if="currentImage" class="text-xs text-green-600">已选图 ✅</span>
+                <div class="mt-2 flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <label class="text-xs font-bold bg-gray-200 px-2 py-1 rounded cursor-pointer hover:bg-gray-300">
+                            📷 上传图片
+                            <input id="imgInput" type="file" accept="image/*" @change="handleImageUpload" class="hidden" />
+                        </label>
+                        <span v-if="currentImage" class="text-xs text-green-600">已选图 ✅</span>
+                    </div>
+                    
+                    <div class="flex items-center gap-1">
+                        <span class="text-xs font-bold text-gray-500">👍点赞:</span>
+                        <input v-model="currentLikeCount" type="number" class="w-16 border p-1 rounded text-xs text-center" placeholder="0">
+                    </div>
                 </div>
+
                 <div v-if="currentImage" class="mt-2">
                     <img :src="currentImage" class="h-16 rounded border border-gray-300">
                 </div>
@@ -136,7 +160,6 @@
                      <input type="checkbox" v-model="showAvatar" class="w-4 h-4 text-blue-600 cursor-pointer">
                      <span class="ml-2 text-sm text-gray-700">显示头像</span>
                  </label>
-                 
                  <label class="flex items-center cursor-pointer select-none">
                      <input type="checkbox" v-model="showTime" class="w-4 h-4 text-blue-600 cursor-pointer">
                      <span class="ml-2 text-sm text-gray-700">显示时间</span>
@@ -144,9 +167,9 @@
             </div>
             
             <button @click="addPost" 
-                :class="insertIndex !== -1 ? 'bg-purple-600 hover:bg-purple-700' : 'bg-blue-600 hover:bg-blue-700'"
+                :class="editingIndex !== -1 ? 'bg-orange-500 hover:bg-orange-600' : (insertIndex !== -1 ? 'bg-purple-600 hover:bg-purple-700' : 'bg-blue-600 hover:bg-blue-700')"
                 class="text-white py-3 rounded shadow font-bold text-lg transition-colors w-full">
-                {{ insertIndex !== -1 ? '✨ 确认插入楼层' : '发送 (追加楼层)' }}
+                {{ editingIndex !== -1 ? '💾 保存修改' : (insertIndex !== -1 ? '✨ 确认插入楼层' : (replyTarget ? '↩️ 发送回复' : '发送 (追加楼层)')) }}
             </button>
             
             <hr>
@@ -154,6 +177,11 @@
             <button @click="exportImage" class="bg-red-600 text-white py-2 rounded hover:bg-red-700 shadow w-full font-bold">
                 📸 生成长截图
             </button>
+            <div class="mt-2 text-center">
+                <button @click="resetAll" class="text-xs text-gray-400 underline hover:text-red-500">
+                    🗑️ 清空所有数据
+                </button>
+            </div>
         </div>
 
         <div class="w-2/3 overflow-auto bg-gray-200 p-5">
@@ -182,7 +210,7 @@
                 <div v-for="(post, index) in posts" :key="index" class="post-card p-4 flex gap-3 relative group">
                     
                     <div v-if="showAvatar" class="w-12 flex-shrink-0 text-center">
-                        <div class="w-10 h-10 bg-gray-200 rounded-sm mx-auto mb-1 overflow-hidden border-2 border-gray-300">
+                        <div class="w-10 h-10 bg-gray-200 rounded-md mx-auto mb-1 overflow-hidden border border-gray-300">
                           <img :src="getAvatarForId(post.id, post.role)" class="w-full h-full object-cover" />
                         </div>
                     </div>
@@ -199,14 +227,29 @@
                             </span>
                         </div>
                         
+                        <div v-if="post.quote" class="quote-box p-2 mb-2 rounded text-xs">
+                            <div class="font-bold mb-1 border-b border-gray-300 pb-1 flex justify-between">
+                                <span>引用 {{ post.quote.floor }}L ({{ post.quote.id }}) 的发言:</span>
+                            </div>
+                            <div class="leading-relaxed opacity-80">{{ post.quote.content }}</div>
+                        </div>
+
                         <div v-if="post.content" class="leading-relaxed whitespace-pre-wrap break-words">{{ post.content }}</div>
 
                         <div v-if="post.image" class="mt-3">
                             <img :src="post.image" class="max-w-full max-h-[500px] rounded border border-gray-200 mx-auto shadow-sm block" />
                         </div>
+
+                        <div class="mt-2 flex justify-end items-center gap-1 text-xs text-gray-500">
+                            <svg class="w-3 h-3 text-gray-400" fill="currentColor" viewBox="0 0 24 24"><path d="M2 20h2c.55 0 1-.45 1-1v-9c0-.55-.45-1-1-1H2v11zm19.83-7.12c.11-.25.17-.52.17-.8V11c0-1.1-.9-2-2-2h-5.5l.92-4.65c.05-.22.02-.46-.08-.66-.23-.45-.52-.86-.88-1.22L14 2 7.59 8.41C7.21 8.79 7 9.3 7 9.83v7.84C7 18.95 8.05 20 9.34 20h8.11c.7 0 1.36-.37 1.72-.97l2.66-6.15z"></path></svg>
+                            <span>{{ post.likeCount || 0 }}</span>
+                        </div>
                     </div>
 
                     <div class="action-buttons absolute right-2 top-2 flex gap-1" data-html2canvas-ignore="true">
+                        <button @click="prepareReply(index)" title="回复/引用" class="bg-cyan-100 text-cyan-600 hover:bg-cyan-200 p-1 rounded text-xs w-6 h-6 flex items-center justify-center font-bold">↩️</button>
+                        
+                        <button @click="editPost(index)" title="编辑" class="bg-orange-100 text-orange-600 hover:bg-orange-200 p-1 rounded text-xs w-6 h-6 flex items-center justify-center font-bold">✎</button>
                         <button @click="prepareInsert(index)" title="插楼" class="bg-purple-100 text-purple-600 hover:bg-purple-200 p-1 rounded text-xs w-6 h-6 flex items-center justify-center font-bold">+</button>
                         <button @click="deletePost(index)" title="删除" class="bg-red-100 text-red-600 hover:bg-red-200 p-1 rounded text-xs w-6 h-6 flex items-center justify-center font-bold">×</button>
                     </div>
@@ -218,7 +261,7 @@
     </div>
 
     <script>
-        const { createApp, ref } = Vue;
+        const { createApp, ref, watch, onMounted } = Vue;
 
         createApp({
             setup() {
@@ -231,17 +274,18 @@
                 const viewCount = ref(5832);
                 
                 const currentRole = ref("LZ");
-                const currentId = ref("");
+                const currentId = ref("无助的楼主");
                 const content = ref("");
                 const currentImage = ref(null);
                 const showAvatar = ref(true);
-                const showTime = ref(true); // 【新增】时间开关
+                const showTime = ref(true); 
                 const insertIndex = ref(-1);
+                const editingIndex = ref(-1);
+                const currentLikeCount = ref(0);
+                const replyTarget = ref(null); // 【新增】当前引用的对象 {id, floor, content}
 
-                // 初始楼层 (空)
                 const posts = ref([]);
 
-                // 预设角色库
                 const presets = ref([
                     { name: '路人甲', role: '路人', id: '路人甲' },
                     { name: '塞巴斯蒂安', role: '路人', id: '塞巴斯蒂安' },
@@ -252,111 +296,128 @@
                 const newPresetId = ref("");   
                 const newPresetAvatar = ref(null);
 
-                // --- 2. 核心逻辑函数 ---
+                const STORAGE_KEY = 'forum_gen_data_v4';
 
-                // 切换到楼主模式 (自动填入全局设定ID)
-                const switchToLz = () => {
-                    currentRole.value = 'LZ';
-                    currentId.value = globalLzName.value; 
+                const fileToBase64 = (file) => {
+                    return new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.readAsDataURL(file);
+                        reader.onload = () => resolve(reader.result);
+                        reader.onerror = error => reject(error);
+                    });
                 };
 
-                // 切换到路人模式 (随机ID)
-                const switchToRoadman = () => {
-                    currentRole.value = '路人';
-                    currentId.value = "路人" + String.fromCharCode(65 + Math.floor(Math.random() * 26));
-                };
+                // --- 3. 核心逻辑 ---
 
-                // 应用预设
+                const switchToLz = () => { currentRole.value = 'LZ'; currentId.value = globalLzName.value; };
+                const switchToRoadman = () => { currentRole.value = '路人'; currentId.value = "路人" + String.fromCharCode(65 + Math.floor(Math.random() * 26)); };
+
                 const applyPreset = () => {
                     const target = presets.value.find(p => p.name === selectedPreset.value);
                     if (target) {
                         currentRole.value = target.role;
-                        if (target.role === 'LZ') {
-                            currentId.value = globalLzName.value;
-                        } else {
-                            currentId.value = target.id;
-                        }
+                        if (target.role === 'LZ') currentId.value = globalLzName.value;
+                        else currentId.value = target.id;
                     }
                 };
 
-                // 自定义角色头像上传预览
-                const handlePresetAvatarUpload = (event) => {
-                    const file = event.target.files[0];
-                    if (file) {
-                        newPresetAvatar.value = URL.createObjectURL(file);
-                    }
-                };
+                // 图片处理
+                const handlePresetAvatarUpload = async (e) => { if (e.target.files[0]) newPresetAvatar.value = await fileToBase64(e.target.files[0]); };
+                const handleLzAvatarUpload = async (e) => { if (e.target.files[0]) lzAvatar.value = await fileToBase64(e.target.files[0]); };
+                const handleImageUpload = async (e) => { if (e.target.files[0]) currentImage.value = await fileToBase64(e.target.files[0]); };
 
-                // 清除预览头像
                 const clearPresetAvatar = () => {
                     newPresetAvatar.value = null;
                     const fileInput = document.getElementById('presetImgInput');
                     if (fileInput) fileInput.value = '';
                 };
 
-                // 楼主头像上传
-                const handleLzAvatarUpload = (event) => {
-                    const file = event.target.files[0];
-                    if (file) {
-                        lzAvatar.value = URL.createObjectURL(file);
-                    }
-                };
-
-                // 添加自定义角色
                 const addCustomPreset = () => {
-                    if (!newPresetName.value || !newPresetId.value) {
-                        alert("请填写角色备注和ID！"); return;
-                    }
-                    presets.value.push({
-                        name: newPresetName.value,
-                        role: '路人',
-                        id: newPresetId.value,
-                        avatarUrl: newPresetAvatar.value 
-                    });
-                    
-                    // 清空
-                    newPresetName.value = ""; 
-                    newPresetId.value = "";
-                    newPresetAvatar.value = null;
+                    if (!newPresetName.value || !newPresetId.value) { alert("请填写角色备注和ID！"); return; }
+                    presets.value.push({ name: newPresetName.value, role: '路人', id: newPresetId.value, avatarUrl: newPresetAvatar.value });
+                    newPresetName.value = ""; newPresetId.value = ""; newPresetAvatar.value = null;
                     document.getElementById('presetImgInput').value = ''; 
                 };
 
-                // 帖子内容图片上传
-                const handleImageUpload = (event) => {
-                    const file = event.target.files[0];
-                    if (file) currentImage.value = URL.createObjectURL(file);
-                };
-
-                // 发送/插入楼层
+                // 发送逻辑 (含引用)
                 const addPost = () => {
                     if (!content.value && !currentImage.value) return;
 
-                    const newPost = {
+                    const newPostData = {
                         role: currentRole.value,
                         id: currentId.value || (currentRole.value === 'LZ' ? globalLzName.value : '路人X'),
                         content: content.value,
                         image: currentImage.value,
-                        time: new Date().toLocaleTimeString('en-US', { hour12: false, hour: "2-digit", minute: "2-digit" })
+                        likeCount: currentLikeCount.value,
+                        // 【新增】保存引用数据
+                        quote: replyTarget.value, 
+                        time: editingIndex.value !== -1 ? posts.value[editingIndex.value].time : new Date().toLocaleTimeString('en-US', { hour12: false, hour: "2-digit", minute: "2-digit" })
                     };
 
-                    if (insertIndex.value === -1) {
-                        posts.value.push(newPost);
-                    } else {
-                        posts.value.splice(insertIndex.value + 1, 0, newPost);
+                    if (editingIndex.value !== -1) {
+                        posts.value[editingIndex.value] = newPostData;
+                        editingIndex.value = -1;
+                    } else if (insertIndex.value !== -1) {
+                        posts.value.splice(insertIndex.value + 1, 0, newPostData);
                         insertIndex.value = -1;
+                    } else {
+                        posts.value.push(newPostData);
                     }
                     
+                    // 重置
                     content.value = "";
                     currentImage.value = null;
+                    currentLikeCount.value = 0;
+                    replyTarget.value = null; // 【新增】发送完清空引用
                     document.getElementById('imgInput').value = ''; 
                 };
 
-                // 删除和插入准备
                 const deletePost = (index) => { if(confirm("删掉这层楼？")) posts.value.splice(index, 1); };
-                const prepareInsert = (index) => { insertIndex.value = index; };
+                const prepareInsert = (index) => { insertIndex.value = index; editingIndex.value = -1; replyTarget.value = null; };
                 const cancelInsert = () => { insertIndex.value = -1; };
+                
+                // 【新增】回复逻辑
+                const prepareReply = (index) => {
+                    const p = posts.value[index];
+                    replyTarget.value = {
+                        id: p.id,
+                        floor: index,
+                        content: p.content || (p.image ? '[图片]' : '...')
+                    };
+                    insertIndex.value = -1; 
+                    editingIndex.value = -1;
+                    // 自动聚焦
+                    document.querySelector('textarea').focus();
+                };
+                const cancelReply = () => { replyTarget.value = null; };
 
-                // 导出图片
+                const editPost = (index) => {
+                    const post = posts.value[index];
+                    content.value = post.content || "";
+                    currentRole.value = post.role;
+                    currentId.value = post.id;
+                    currentImage.value = post.image || null;
+                    currentLikeCount.value = post.likeCount || 0;
+                    replyTarget.value = post.quote || null; // 【新增】编辑时带出引用
+                    editingIndex.value = index;
+                    insertIndex.value = -1;
+                };
+                const cancelEdit = () => {
+                    editingIndex.value = -1;
+                    content.value = "";
+                    currentImage.value = null;
+                    currentLikeCount.value = 0;
+                    replyTarget.value = null;
+                    document.getElementById('imgInput').value = '';
+                };
+
+                const resetAll = () => {
+                    if(confirm("确定清空所有数据重置吗？")) {
+                        localStorage.removeItem(STORAGE_KEY);
+                        location.reload();
+                    }
+                };
+
                 const exportImage = () => {
                     html2canvas(document.getElementById("capture-area"), {
                         useCORS: true,
@@ -369,25 +430,56 @@
                     });
                 };
 
-                // 根据ID获取头像URL
                 const getAvatarForId = (id, role) => {
                     if (role === 'LZ') {
                         if (lzAvatar.value) return lzAvatar.value;
-                        return "https://api.dicebear.com/7.x/pixel-art/svg?seed=lz";
+                        return "https://api.dicebear.com/7.x/lorelei/svg?seed=lz";
                     }
                     const preset = presets.value.find(p => p.id === id && p.avatarUrl);
                     if (preset) return preset.avatarUrl; 
-                    return `https://api.dicebear.com/7.x/pixel-art/svg?seed=${encodeURIComponent(id)}`;
+                    return `https://api.dicebear.com/7.x/lorelei/svg?seed=${encodeURIComponent(id)}`;
                 };
 
-                // --- 3. 暴露给模板 ---
+                // --- 4. 自动存档 ---
+                watch(
+                    [posts, presets, threadTitle, forumName, subForum, globalLzName, viewCount, lzAvatar, showAvatar, showTime],
+                    () => {
+                        const data = {
+                            posts: posts.value, presets: presets.value, threadTitle: threadTitle.value,
+                            forumName: forumName.value, subForum: subForum.value, globalLzName: globalLzName.value,
+                            viewCount: viewCount.value, lzAvatar: lzAvatar.value, showAvatar: showAvatar.value, showTime: showTime.value
+                        };
+                        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch(e) {}
+                    }, { deep: true }
+                );
+
+                onMounted(() => {
+                    const saved = localStorage.getItem(STORAGE_KEY);
+                    if(saved) {
+                        try {
+                            const p = JSON.parse(saved);
+                            if(p.posts) posts.value = p.posts;
+                            if(p.presets) presets.value = p.presets;
+                            if(p.threadTitle) threadTitle.value = p.threadTitle;
+                            if(p.forumName) forumName.value = p.forumName;
+                            if(p.subForum) subForum.value = p.subForum;
+                            if(p.globalLzName) globalLzName.value = p.globalLzName;
+                            if(p.viewCount) viewCount.value = p.viewCount;
+                            if(p.lzAvatar) lzAvatar.value = p.lzAvatar;
+                            if(p.showAvatar !== undefined) showAvatar.value = p.showAvatar;
+                            if(p.showTime !== undefined) showTime.value = p.showTime;
+                        } catch(e) {}
+                    }
+                });
+
                 return {
                     threadTitle, forumName, subForum, globalLzName, viewCount, lzAvatar,
-                    currentRole, currentId, content, posts, showAvatar, showTime, currentImage,
-                    presets, selectedPreset, newPresetName, newPresetId, insertIndex,
+                    currentRole, currentId, content, posts, showAvatar, showTime, currentImage, currentLikeCount, replyTarget,
+                    presets, selectedPreset, newPresetName, newPresetId, insertIndex, editingIndex,
                     switchToLz, switchToRoadman, applyPreset, addCustomPreset,
                     handleImageUpload, addPost, deletePost, prepareInsert, cancelInsert, exportImage,
-                    newPresetAvatar, handlePresetAvatarUpload, getAvatarForId, clearPresetAvatar, handleLzAvatarUpload
+                    newPresetAvatar, handlePresetAvatarUpload, getAvatarForId, clearPresetAvatar, handleLzAvatarUpload,
+                    editPost, cancelEdit, resetAll, prepareReply, cancelReply
                 };
             }
         }).mount('#app');
