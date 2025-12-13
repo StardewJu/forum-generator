@@ -2,7 +2,7 @@
 <html lang="zh">
 <head>
     <meta charset="UTF-8">
-    <title>论坛体生成器 (时间漫游版)</title>
+    <title>论坛体生成器 (下拉存档版)</title>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
@@ -30,10 +30,17 @@
                     <h2 class="font-bold text-sm">💾 存档管理</h2>
                     <span class="text-[10px] bg-green-600 px-2 py-0.5 rounded text-white">{{ currentSaveSlot }}</span>
                 </div>
+                
+                <select @change="selectSaveFromList" class="w-full text-black text-xs p-1.5 rounded mb-2 bg-gray-200 border-none cursor-pointer hover:bg-white transition-colors">
+                    <option value="" disabled selected>📂 点击选择已有存档...</option>
+                    <option v-for="name in saveList" :value="name">{{ name }}</option>
+                </select>
+
                 <div class="flex gap-2">
-                    <input v-model.lazy="currentSaveSlot" @change="switchSaveSlot" class="w-full text-black text-xs p-1.5 rounded" placeholder="存档名">
-                    <button @click="resetCurrentSlot" class="bg-red-600 hover:bg-red-700 text-xs text-white px-3 rounded h-8">清空</button>
+                    <input v-model.lazy="currentSaveSlot" @change="switchSaveSlot" class="w-full text-black text-xs p-1.5 rounded" placeholder="输入新名字可新建存档">
+                    <button @click="resetCurrentSlot" class="bg-red-600 hover:bg-red-700 text-xs text-white px-3 rounded h-8 whitespace-nowrap">删除当前</button>
                 </div>
+                <p class="text-[10px] text-gray-400 mt-1">💡 选下拉框切换旧存档，或在输入框打字建新存档。</p>
             </div>
 
             <div class="space-y-2 mb-2 border-b pb-4">
@@ -100,7 +107,7 @@
             <div>
                 <div class="mb-2">
                     <label class="block text-sm font-bold mb-1">🕒 自定义时间</label>
-                    <input v-model="customTime" class="w-full border p-1 rounded text-sm bg-yellow-50 focus:bg-white transition-colors" placeholder="留空则自动生成当前时间 (如: 昨天 12:00)">
+                    <input v-model="customTime" class="w-full border p-1 rounded text-sm bg-yellow-50 focus:bg-white transition-colors" placeholder="留空则自动生成当前时间">
                 </div>
 
                 <div class="flex justify-between items-center mb-1 flex-wrap gap-2">
@@ -156,9 +163,6 @@
             <button @click="exportImage" class="bg-red-600 text-white py-2 rounded hover:bg-red-700 shadow w-full font-bold">
                 📸 生成长截图
             </button>
-            <div class="mt-2 text-center">
-                <button @click="resetAll" class="text-xs text-gray-400 underline hover:text-red-500">🗑️ 清空所有数据</button>
-            </div>
         </div>
 
         <div class="w-2/3 overflow-auto bg-gray-200 p-5">
@@ -239,6 +243,7 @@
         createApp({
             setup() {
                 const currentSaveSlot = ref("默认存档");
+                const saveList = ref([]); // 【新增】存档列表
                 
                 const threadTitle = ref("求助！我的室友好像是个杀手...");
                 const forumName = ref("鹈鹕镇社区");
@@ -257,7 +262,7 @@
                 const editingIndex = ref(-1);
                 const currentLikeCount = ref(0);
                 const replyTarget = ref(null);
-                const customTime = ref(""); // 【新增】自定义时间变量
+                const customTime = ref(""); 
 
                 const posts = ref([]);
 
@@ -312,11 +317,6 @@
                 const addPost = () => {
                     if (!content.value && !currentImage.value) return;
 
-                    // 【核心修改】时间处理逻辑
-                    // 1. 如果有自定义时间，就用自定义的
-                    // 2. 如果没有自定义时间：
-                    //    - 如果是新建帖子，生成当前时间
-                    //    - 如果是编辑帖子，保留原来的时间
                     let finalTime;
                     if (customTime.value && customTime.value.trim() !== "") {
                         finalTime = customTime.value;
@@ -350,7 +350,7 @@
                     currentImage.value = null;
                     currentLikeCount.value = 0;
                     replyTarget.value = null;
-                    customTime.value = ""; // 发送完清空时间
+                    customTime.value = ""; 
                     document.getElementById('imgInput').value = ''; 
                 };
 
@@ -378,7 +378,7 @@
                     currentImage.value = post.image || null;
                     currentLikeCount.value = post.likeCount || 0;
                     replyTarget.value = post.quote || null;
-                    customTime.value = post.time || ""; // 【新增】编辑时回填时间
+                    customTime.value = post.time || ""; 
                     editingIndex.value = index;
                     insertIndex.value = -1;
                 };
@@ -388,7 +388,7 @@
                     currentImage.value = null;
                     currentLikeCount.value = 0;
                     replyTarget.value = null;
-                    customTime.value = ""; // 清空时间
+                    customTime.value = ""; 
                     document.getElementById('imgInput').value = '';
                 };
 
@@ -397,6 +397,7 @@
                         localStorage.removeItem(getStorageKey());
                         loadData(); 
                     }
+                    updateSaveList(); // 刷新列表
                 };
 
                 const exportImage = () => {
@@ -421,8 +422,20 @@
                     return `https://api.dicebear.com/7.x/lorelei/svg?seed=${encodeURIComponent(id)}`;
                 };
 
-                // --- 存档逻辑 ---
+                // --- 存档与下拉列表逻辑 ---
                 const getStorageKey = () => `forum_data_${currentSaveSlot.value.trim() || 'default'}`;
+
+                // 【新增】更新存档列表
+                const updateSaveList = () => {
+                    const list = [];
+                    for(let i=0; i<localStorage.length; i++) {
+                        const key = localStorage.key(i);
+                        if(key.startsWith('forum_data_')) {
+                            list.push(key.replace('forum_data_', ''));
+                        }
+                    }
+                    saveList.value = list;
+                };
 
                 const loadData = () => {
                     const saved = localStorage.getItem(getStorageKey());
@@ -446,6 +459,12 @@
                     }
                 };
 
+                // 下拉框选择事件
+                const selectSaveFromList = (e) => {
+                    currentSaveSlot.value = e.target.value;
+                    loadData();
+                };
+
                 const switchSaveSlot = () => { loadData(); };
 
                 watch(
@@ -456,17 +475,23 @@
                             forumName: forumName.value, subForum: subForum.value, globalLzName: globalLzName.value,
                             viewCount: viewCount.value, lzAvatar: lzAvatar.value, showAvatar: showAvatar.value, showTime: showTime.value
                         };
-                        try { localStorage.setItem(getStorageKey(), JSON.stringify(data)); } catch(e) {}
+                        try { 
+                            localStorage.setItem(getStorageKey(), JSON.stringify(data)); 
+                            updateSaveList(); // 保存时顺便刷新列表
+                        } catch(e) {}
                     }, { deep: true }
                 );
 
-                onMounted(() => { loadData(); });
+                onMounted(() => { 
+                    updateSaveList(); // 启动时刷新列表
+                    loadData(); 
+                });
 
                 return {
-                    currentSaveSlot, switchSaveSlot, resetCurrentSlot,
+                    currentSaveSlot, switchSaveSlot, resetCurrentSlot, saveList, selectSaveFromList,
                     threadTitle, forumName, subForum, globalLzName, viewCount, lzAvatar,
                     currentRole, currentId, content, posts, showAvatar, showTime, currentImage, currentLikeCount, replyTarget,
-                    customTime, // 导出新变量
+                    customTime, 
                     presets, selectedPreset, newPresetName, newPresetId, insertIndex, editingIndex,
                     switchToLz, switchToRoadman, applyPreset, addCustomPreset,
                     handleImageUpload, addPost, deletePost, prepareInsert, cancelInsert, exportImage,
